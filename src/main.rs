@@ -6,7 +6,7 @@ use image::{imageops::FilterType, GenericImageView};
 use ndarray::{s, Array, Axis};
 use ort::{inputs, CUDAExecutionProvider, Session, SessionOutputs};
 use raqote::{DrawOptions, DrawTarget, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle};
-use show_image::{event, WindowOptions};
+use show_image::{event, AsImageView, WindowOptions};
 
 #[derive(Debug, Clone, Copy)]
 struct BoundingBox {
@@ -25,8 +25,9 @@ fn union(box1: &BoundingBox, box2: &BoundingBox) -> f32 {
         - intersection(box1, box2)
 }
 
-const YOLOV8M_URL: &str =
-    "https://parcel.pyke.io/v2/cdn/assetdelivery/ortrsv2/ex_models/yolov8m.onnx";
+const YOLOV8M_PATH: &str = "/home/ctyler/personal/rust-inference/data/yolov8m.onnx";
+
+const IMAGE_PATH: &str = "/home/ctyler/personal/rust-inference/data/baseball.jpg";
 
 #[rustfmt::skip]
 const YOLOV8_CLASS_LABELS: [&str; 80] = [
@@ -48,12 +49,8 @@ fn main() -> ort::Result<()> {
         .with_execution_providers([CUDAExecutionProvider::default().build()])
         .commit()?;
 
-    let original_img = image::open(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("baseball.jpg"),
-    )
-    .unwrap();
+    let original_img = image::open(Path::new(IMAGE_PATH)).unwrap();
+
     let (img_width, img_height) = (original_img.width(), original_img.height());
     let img = original_img.resize_exact(640, 640, FilterType::CatmullRom);
     let mut input = Array::zeros((1, 3, 640, 640));
@@ -66,7 +63,7 @@ fn main() -> ort::Result<()> {
         input[[0, 2, y, x]] = (b as f32) / 255.;
     }
 
-    let model = Session::builder()?.commit_from_file(YOLOV8M_URL)?;
+    let model = Session::builder()?.commit_from_file(Path::new(YOLOV8M_PATH))?;
 
     // Run YOLOv8 inference
     let outputs: SessionOutputs = model.run(inputs!["images" => input.view()]?)?;
